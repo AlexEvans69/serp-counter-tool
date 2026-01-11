@@ -1,0 +1,19 @@
+{
+  "name": "serp_counter_vue_ext",
+  "version": "1.0.0",
+  "description": "Google SERP Numerator reimplemented as a Vue 3 extension",
+  "author": "",
+  "private": true,
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build"
+  },
+  "dependencies": {
+    "vue": "^3.4.0"
+  },
+  "devDependencies": {
+    "@vitejs/plugin-vue": "^4.4.0",
+    "vite": "^4.5.0",
+    "vite-plugin-static-copy": "^0.17.0"
+  }
+}

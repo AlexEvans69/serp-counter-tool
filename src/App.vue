@@ -1,15 +1,5 @@
 <template>
-  <!-- No hover UI - everything is attached inline -->
-  <NotePanel
-    v-if="panelState.visible"
-    :x="panelState.x"
-    :y="panelState.y"
-    :scopeDefault="panelState.scope"
-    :textDefault="panelState.text"
-    @close="panelState.visible = false"
-    @save-note="onSaveNote"
-    @delete-note="onDeleteNote"
-  />
+  <!-- Panel mounted directly in note-wrap elements -->
 </template>
 
 <script setup>
@@ -100,20 +90,8 @@ function pickEffectiveNote(notesObj, urlKey, host) {
 }
 
 // ---- Panel handling ----
-const panelState = reactive({
-  visible: false,
-  x: 100,
-  y: 100,
-  scope: "url",
-  text: "",
-  urlKey: "",
-  host: "",
-  sourceNode: null,
-});
-
-// ---- Used to track which result/note got clicked ----
-// marker on panel-open to allow updating correct preview
-let latestNoteWidgetEl = null;
+let activePanelApp = null;
+let activePanelContainer = null;
 
 async function openPanelFor(
   anchor,
@@ -124,30 +102,77 @@ async function openPanelFor(
   text,
   scope
 ) {
-  // Find position for panel based on result node
-  const rect = (resultNode || widgetEl).getBoundingClientRect();
-  let px = window.scrollX + rect.right + 18;
-  let py = window.scrollY + rect.top;
-  if (px + 420 > window.innerWidth) px = Math.max(20, window.innerWidth - 420);
-  if (py + 340 > window.innerHeight)
-    py = Math.max(20, window.innerHeight - 340);
-  // Set state
-  panelState.visible = true;
-  panelState.x = px;
-  panelState.y = py;
-  panelState.text = text;
-  panelState.scope = scope;
-  panelState.urlKey = urlKey;
-  panelState.host = host;
-  panelState.sourceNode = resultNode;
-  latestNoteWidgetEl = widgetEl;
+  console.log("[SERP COUNTER] openPanelFor called");
+
+  // Close existing panel if any
+  if (activePanelApp && activePanelContainer) {
+    activePanelApp.unmount();
+    activePanelContainer.remove();
+  }
+
+  // Create panel container and append to body (not to widget)
+  const panelContainer = document.createElement("div");
+  panelContainer.className = "serp-note-panel-container";
+
+  // Calculate position relative to widget
+  const rect = widgetEl.getBoundingClientRect();
+  panelContainer.style.position = "fixed";
+  panelContainer.style.left = `${rect.left}px`;
+  panelContainer.style.top = `${rect.bottom + 8}px`;
+
+  document.body.appendChild(panelContainer);
+
+  // Create and mount panel
+  const panelApp = window.__VUE_CREATEAPP(NotePanel, {
+    scopeDefault: scope,
+    textDefault: text,
+    onClose: () => {
+      panelApp.unmount();
+      panelContainer.remove();
+      activePanelApp = null;
+      activePanelContainer = null;
+    },
+    onSaveNote: async ({ scope: noteScope, text: noteText }) => {
+      const notesObj = await storageGetAllNotesV2();
+      if (noteScope === "site") {
+        if (!noteText.trim()) delete notesObj.bySite[host];
+        else notesObj.bySite[host] = noteText;
+      } else {
+        if (!noteText.trim()) delete notesObj.byUrl[urlKey];
+        else notesObj.byUrl[urlKey] = noteText;
+      }
+      await storageSetAllNotesV2(notesObj);
+      panelApp.unmount();
+      panelContainer.remove();
+      activePanelApp = null;
+      activePanelContainer = null;
+      injectAllFeatures(true);
+    },
+    onDeleteNote: async ({ scope: noteScope }) => {
+      const notesObj = await storageGetAllNotesV2();
+      if (noteScope === "site") delete notesObj.bySite[host];
+      else delete notesObj.byUrl[urlKey];
+      await storageSetAllNotesV2(notesObj);
+      panelApp.unmount();
+      panelContainer.remove();
+      activePanelApp = null;
+      activePanelContainer = null;
+      injectAllFeatures(true);
+    },
+  });
+
+  panelApp.mount(panelContainer);
+  activePanelApp = panelApp;
+  activePanelContainer = panelContainer;
+
+  console.log("[SERP COUNTER] Panel mounted to body");
 }
 
 // ---- Main inject logic ----
 const injectedNodes = new Set();
 let lastNotesObj = null;
 
-async function injectAllFeatures() {
+async function injectAllFeatures(clearMarkers = false) {
   // 1. Fetch note state
   const notesObj = await storageGetAllNotesV2();
   lastNotesObj = notesObj;
@@ -158,6 +183,21 @@ async function injectAllFeatures() {
     !!search
   );
   if (!search) return;
+
+  // Clear markers if requested (after save/delete)
+  if (clearMarkers) {
+    const processed = search.querySelectorAll("[data-serp-processed]");
+    processed.forEach((el) => {
+      el.removeAttribute("data-serp-processed");
+      // Remove old injected elements
+      el.querySelectorAll(".vue-serp-badge, .vue-serp-note-widget").forEach(
+        (injected) => {
+          injected.remove();
+        }
+      );
+    });
+  }
+
   let index = getBaseIndexFromUrl();
   const badgeClass = "vue-serp-badge";
   const noteWidgetClass = "vue-serp-note-widget";
@@ -182,7 +222,7 @@ async function injectAllFeatures() {
     seen.add(root);
     console.log("[SERP COUNTER] Injecting badge and note for result", index);
     // Add number badge
-    const badgeEl = document.createElement("span");
+    const badgeEl = document.createElement("div");
     badgeEl.className = badgeClass;
     root.insertBefore(badgeEl, root.firstChild);
     const badgeApp = window.__VUE_CREATEAPP(SERPBadge, {
@@ -199,20 +239,20 @@ async function injectAllFeatures() {
     const picked = finalUrl
       ? pickEffectiveNote(notesObj, urlKey, host)
       : { text: "", scope: "url" };
-    const noteEl = document.createElement("span");
+    const noteEl = document.createElement("div");
     noteEl.className = noteWidgetClass;
     root.appendChild(noteEl);
-    const noteApp = window.__VUE_CREATEAPP(NoteWidget, { text: picked.text });
+    const noteApp = window.__VUE_CREATEAPP(NoteWidget, {
+      text: picked.text,
+      onOpenPanel: () => {
+        console.log("[SERP COUNTER] Note panel opened for result", index);
+        openPanelFor(a, root, noteEl, urlKey, host, picked.text, picked.scope);
+      },
+    });
     // Listen for note button click -> open panel at right place
     noteApp._instance && (noteApp._instance.exposed = {});
     noteApp.mount(noteEl);
     injectedNodes.add(noteEl);
-    // Attach our handler for click
-    noteEl.addEventListener("click", (e) => {
-      e.stopPropagation();
-      if (!finalUrl) return;
-      openPanelFor(a, root, noteEl, urlKey, host, picked.text, picked.scope);
-    });
     index++;
   }
   // 3. Label ads
@@ -228,7 +268,7 @@ async function injectAllFeatures() {
       if (root.hasAttribute(processedMarker)) continue;
       root.setAttribute(processedMarker, "true");
 
-      const badgeEl = document.createElement("span");
+      const badgeEl = document.createElement("div");
       badgeEl.className = badgeClass;
       root.insertBefore(badgeEl, root.firstChild);
       const badgeApp = window.__VUE_CREATEAPP(SERPBadge, {
@@ -271,33 +311,6 @@ function ensureRoot(h3) {
   return node;
 }
 
-// ---- Panel Save/Delete ----
-async function onSaveNote({ scope, text }) {
-  const urlKey = panelState.urlKey,
-    host = panelState.host;
-  const notesObj = await storageGetAllNotesV2();
-  if (scope === "site") {
-    if (!text.trim()) delete notesObj.bySite[host];
-    else notesObj.bySite[host] = text;
-  } else {
-    if (!text.trim()) delete notesObj.byUrl[urlKey];
-    else notesObj.byUrl[urlKey] = text;
-  }
-  await storageSetAllNotesV2(notesObj);
-  panelState.visible = false;
-  injectAllFeatures();
-}
-async function onDeleteNote({ scope }) {
-  const urlKey = panelState.urlKey,
-    host = panelState.host;
-  const notesObj = await storageGetAllNotesV2();
-  if (scope === "site") delete notesObj.bySite[host];
-  else delete notesObj.byUrl[urlKey];
-  await storageSetAllNotesV2(notesObj);
-  panelState.visible = false;
-  injectAllFeatures();
-}
-
 // ---- Mutation observer for changes/spa nav ----
 let observer = null;
 function startDomObserver() {
@@ -310,9 +323,50 @@ function startDomObserver() {
   observer.observe(search, { childList: true, subtree: true });
 }
 
+// ---- Theme detection ----
+function parseRgb(str) {
+  const m = String(str).match(/rgba?\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/i);
+  if (!m) return null;
+  return { r: +m[1], g: +m[2], b: +m[3] };
+}
+
+function isDarkColor(rgb) {
+  const lum = 0.2126 * rgb.r + 0.7152 * rgb.g + 0.0722 * rgb.b;
+  return lum < 128;
+}
+
+function detectPageDarkTheme() {
+  const cs = (
+    getComputedStyle(document.documentElement).colorScheme || ""
+  ).toLowerCase();
+  if (cs.includes("dark")) return true;
+  if (cs.includes("light")) return false;
+
+  const bodyBg = getComputedStyle(document.body).backgroundColor;
+  let rgb = parseRgb(bodyBg);
+
+  if (!rgb || bodyBg === "transparent") {
+    const htmlBg = getComputedStyle(document.documentElement).backgroundColor;
+    rgb = parseRgb(htmlBg);
+  }
+
+  if (rgb) return isDarkColor(rgb);
+  return !!(
+    window.matchMedia &&
+    window.matchMedia("(prefers-color-scheme: dark)").matches
+  );
+}
+
+function syncThemeFlag() {
+  const isDark = detectPageDarkTheme();
+  document.documentElement.dataset.serpTheme = isDark ? "dark" : "light";
+}
+
 onMounted(() => {
+  syncThemeFlag();
   window.__VUE_CREATEAPP = (Component, props = {}) =>
     createApp(Component, props);
+  console.log("[SERP COUNTER] App mounted");
   injectAllFeatures();
   startDomObserver();
   // Nav events (SPA update)
@@ -325,10 +379,6 @@ onUnmounted(() => {
 </script>
 
 <style>
-#app {
-  display: none;
-}
-
 /* Palettes:
    page light -> dark bg, light text
    page dark  -> light bg, dark text
@@ -381,16 +431,71 @@ onUnmounted(() => {
   pointer-events: none;
 }
 
-.note-wrap {
+.vue-serp-note-widget {
   position: absolute;
   right: 0;
   top: 6px;
   transform: translateX(calc(100% + 10px));
   width: auto;
-  z-index: 20;
+}
+
+.note-wrap {
+  position: relative;
   display: inline-flex;
   align-items: flex-start;
   gap: 6px;
+  z-index: 100;
+  isolation: isolate;
+}
+
+.note-preview-wrapper {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.note-preview {
+  border: 1px solid var(--serp-border);
+  background: var(--serp-muted-bg);
+  color: var(--serp-fg);
+  border-radius: 10px;
+  padding: 6px 10px;
+  font: 600 12px/1.25 system-ui, -apple-system, Segoe UI, Roboto, Arial,
+    sans-serif;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  max-width: 200px;
+  max-height: 60px;
+  overflow: hidden;
+  display: block;
+  transition: max-height 0.2s ease;
+}
+
+.note-preview.expanded {
+  max-height: 500px;
+}
+
+.note-expand-btn {
+  align-self: flex-start;
+  background: var(--serp-bg);
+  border: 1px solid var(--serp-border);
+  color: var(--serp-fg);
+  border-radius: 6px;
+  padding: 2px 6px;
+  font: 600 10px/1 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
+  cursor: pointer;
+  user-select: none;
+}
+
+.note-expand-btn:hover {
+  opacity: 0.8;
+}
+
+.serp-note-panel-container {
+  position: fixed;
+  z-index: 10000;
 }
 
 .serp-note-btn {
@@ -406,22 +511,5 @@ onUnmounted(() => {
 
 .serp-note-btn:hover {
   opacity: 0.8;
-}
-
-.serp-note-preview {
-  border: 1px solid var(--serp-border);
-  background: var(--serp-muted-bg);
-  color: var(--serp-fg);
-  border-radius: 10px;
-  padding: 6px 10px;
-  font: 600 12px/1.25 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  max-width: 200px;
-  max-height: 60px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  display: block;
 }
 </style>

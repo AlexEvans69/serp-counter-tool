@@ -1,5 +1,5 @@
 <template>
-  <div v-show="visible" class="serp-note-panel" :style="{ left: `${x}px`, top: `${y}px` }">
+  <div class="serp-note-panel">
     <div class="serp-note-panel-header">
       <span class="serp-note-panel-title">Note</span>
       <button class="serp-note-panel-close" @click="close">&times;</button>
@@ -10,7 +10,9 @@
     </select>
     <textarea v-model="text" class="serp-note-text"></textarea>
     <div class="serp-note-actions">
-      <button class="serp-note-action danger" @click="deleteNote">Delete</button>
+      <button class="serp-note-action danger" @click="deleteNote">
+        Delete
+      </button>
       <button class="serp-note-action" @click="cancel">Cancel</button>
       <button class="serp-note-action" @click="save">Save</button>
     </div>
@@ -18,43 +20,64 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, watch } from "vue";
 
 const props = defineProps({
-  visible: Boolean,
-  x: Number,
-  y: Number,
   scopeDefault: String,
-  textDefault: String
+  textDefault: String,
+  onClose: Function,
+  onSaveNote: Function,
+  onDeleteNote: Function,
 });
 
-const emit = defineEmits(["close","save-note","delete-note"]);
+const scope = ref(props.scopeDefault || "url");
+const text = ref(props.textDefault || "");
 
-const scope = ref(props.scopeDefault || 'url');
-const text = ref(props.textDefault || '');
+// Watch prop changes and update local state
+watch(
+  () => props.scopeDefault,
+  (newVal) => {
+    scope.value = newVal || "url";
+  }
+);
 
-function close() { emit('close'); }
-function cancel() { close(); }
-function save() { emit('save-note', { scope: scope.value, text: text.value }); close(); }
-function deleteNote() { emit('delete-note', { scope: scope.value }); close(); }
+watch(
+  () => props.textDefault,
+  (newVal) => {
+    text.value = newVal || "";
+  }
+);
+
+function close() {
+  if (typeof props.onClose === "function") {
+    props.onClose();
+  }
+}
+function cancel() {
+  close();
+}
+function save() {
+  if (typeof props.onSaveNote === "function") {
+    props.onSaveNote({ scope: scope.value, text: text.value });
+  }
+}
+function deleteNote() {
+  if (typeof props.onDeleteNote === "function") {
+    props.onDeleteNote({ scope: scope.value });
+  }
+}
 </script>
 
-<style scoped>
+<style>
 .serp-note-panel {
-  position: fixed;
-  background: #fff;
-  border: 1px solid #ccc;
+  background: var(--serp-bg);
+  border: 1px solid var(--serp-border);
   border-radius: 12px;
-  box-shadow: 0 10px 30px rgba(0,0,0,.18);
-  z-index: 3000;
+  box-shadow: var(--serp-shadow);
   width: 380px;
   max-width: 90vw;
-  max-height: 70vh;
-  resize: both;
-  overflow: auto;
   padding: 16px;
-  left: 40px;
-  top: 40px;
+  color: var(--serp-fg);
 }
 .serp-note-panel-header {
   display: flex;
@@ -67,25 +90,43 @@ function deleteNote() { emit('delete-note', { scope: scope.value }); close(); }
   font-size: 13px;
 }
 .serp-note-panel-close {
-  background: none; border: none;
+  background: none;
+  border: none;
   font-size: 20px;
   cursor: pointer;
+  color: var(--serp-fg);
 }
-.serp-note-scope, .serp-note-text {
+.serp-note-scope,
+.serp-note-text {
   width: 100%;
   margin-bottom: 10px;
   border-radius: 8px;
-  border: 1px solid #aaa;
+  border: 1px solid var(--serp-border);
   padding: 8px;
   font-size: 13px;
+  background: var(--serp-input-bg);
+  color: var(--serp-input-fg);
 }
 .serp-note-actions {
-  display: flex; gap: 10px; justify-content: flex-end;
+  display: flex;
+  gap: 10px;
+  justify-content: flex-end;
 }
 .serp-note-action {
-  padding: 7px 14px; border-radius: 8px; border: 1px solid #aaa;
-  font-weight: bold; cursor: pointer;
-  background: #f5f5f5;
+  padding: 7px 14px;
+  border-radius: 8px;
+  border: 1px solid var(--serp-border);
+  font-weight: bold;
+  cursor: pointer;
+  background: var(--serp-bg);
+  color: var(--serp-fg);
 }
-.serp-note-action.danger { border-color: #c00; background: #fee; color: #900; }
+.serp-note-action:hover {
+  opacity: 0.8;
+}
+.serp-note-action.danger {
+  border-color: #c00;
+  background: #fee;
+  color: #900;
+}
 </style>

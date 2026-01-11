@@ -1,40 +1,55 @@
 <template>
   <div class="note-wrap">
-    <button class="serp-note-btn" @click="$emit('open-panel')">Note</button>
-    <div class="serp-note-preview" v-if="text">
-      {{ text.length > 120 ? text.slice(0, 120) + '...' : text }}
-      <button v-if="text && text.length > 120" @click="$emit('toggle-expand')">More</button>
+    <button class="serp-note-btn" @click="handleOpenPanel">Note</button>
+    <div v-if="text" class="note-preview-wrapper">
+      <div
+        ref="previewEl"
+        class="note-preview"
+        :class="{ expanded: isExpanded }"
+      >
+        {{ text }}
+      </div>
+      <button
+        v-if="showExpandBtn"
+        class="note-expand-btn"
+        @click="toggleExpand"
+      >
+        <span v-if="!isExpanded">▼ More</span>
+        <span v-else>▲ Less</span>
+      </button>
     </div>
   </div>
 </template>
 
 <script setup>
+import { ref, onMounted, nextTick } from "vue";
+
 const props = defineProps({
-  text: String
+  text: String,
+  onOpenPanel: Function,
+});
+
+const isExpanded = ref(false);
+const showExpandBtn = ref(false);
+const previewEl = ref(null);
+
+function handleOpenPanel() {
+  if (typeof props.onOpenPanel === "function") {
+    props.onOpenPanel();
+  }
+}
+
+function toggleExpand() {
+  isExpanded.value = !isExpanded.value;
+}
+
+onMounted(() => {
+  nextTick(() => {
+    if (previewEl.value && props.text) {
+      // Check if content exceeds 3 lines (approximately 60px)
+      const fullHeight = previewEl.value.scrollHeight;
+      showExpandBtn.value = fullHeight > 60;
+    }
+  });
 });
 </script>
-
-<style scoped>
-.note-wrap {
-  display: inline-flex;
-  align-items: flex-start;
-  gap: 6px;
-}
-.serp-note-btn {
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  padding: 5px 10px;
-  background: #f1f1f7;
-  font-weight: bold;
-  cursor: pointer;
-}
-.serp-note-preview {
-  border: 1px solid #ccc;
-  border-radius: 8px;
-  padding: 5px 10px;
-  background: #f9f9fa;
-  min-width: 60px;
-  font-size: 11px;
-}
-</style>
-

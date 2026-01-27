@@ -3,6 +3,7 @@
   const STORAGE_KEY = "serp_site_notes_v2"; // { byUrl: {}, bySite: {} }
   const LEGACY_KEY = "serp_site_notes_v1";  // legacy: { host: text }
   const PANEL_SIZE_KEY = "serp_note_panel_size_v1"; // { w, h }
+  const BADGE_COLORS_KEY = "serp_badge_colors_v1"; // { badgeKey: { bgColor, textColor } }
 
   const MARK_NUM = "serpNumDone";
   const MARK_ADS = "serpAdsDone";
@@ -13,6 +14,9 @@
   const NOTE_WRAP_CLASS = "serp-note-wrap";
 
   const STYLE_ID = "serp-numerator-style";
+
+  // Global badge colors cache
+  let badgeColorsCache = {};
 
   // Global floating panel refs
   let panelEl = null;
@@ -102,7 +106,31 @@
     const badge = document.createElement("span");
     badge.className = cls;
     badge.textContent = text;
+    
+    // Apply saved colors if available
+    const badgeKey = type === "num" ? `pos_${text}_${getQuerySignature()}` : null;
+    if (badgeKey && badgeColorsCache[badgeKey]) {
+      const colors = badgeColorsCache[badgeKey];
+      badge.style.background = colors.bgColor;
+      badge.style.color = colors.textColor;
+    } else if (type === "ads") {
+      badge.style.background = "linear-gradient(135deg, #f5a623 0%, #e67e22 100%)";
+      badge.style.color = "#fff";
+    } else {
+      badge.style.background = "linear-gradient(135deg, #667eea 0%, #764ba2 100%)";
+      badge.style.color = "#fff";
+    }
+    
     root.insertBefore(badge, root.firstChild);
+  }
+
+  function getQuerySignature() {
+    try {
+      const params = new URLSearchParams(location.search);
+      return params.get("q") || "";
+    } catch {
+      return "";
+    }
   }
 
   function looksLikeOrganicH3(h3) {
@@ -206,6 +234,32 @@
   function storageSetPanelSize(w, h) {
     return new Promise((resolve) => {
       chrome.storage.local.set({ [PANEL_SIZE_KEY]: { w, h } }, () => resolve());
+    });
+  }
+
+  // ====== STORAGE (badge colors) ======
+  async function storageGetBadgeColors() {
+    return new Promise((resolve) => {
+      chrome.storage.local.get([BADGE_COLORS_KEY], (res) => {
+        const colors = res && res[BADGE_COLORS_KEY] ? res[BADGE_COLORS_KEY] : {};
+        badgeColorsCache = colors;
+        console.log("[SERP] Badge colors loaded:", Object.keys(colors).length);
+        resolve(colors);
+      });
+    });
+  }
+
+  function storageSetBadgeColor(badgeKey, bgColor, textColor) {
+    return new Promise((resolve) => {
+      chrome.storage.local.get([BADGE_COLORS_KEY], (res) => {
+        const colors = res && res[BADGE_COLORS_KEY] ? res[BADGE_COLORS_KEY] : {};
+        colors[badgeKey] = { bgColor, textColor };
+        badgeColorsCache = colors;
+        chrome.storage.local.set({ [BADGE_COLORS_KEY]: colors }, () => {
+          console.log("[SERP] Badge color saved for", badgeKey);
+          resolve();
+        });
+      });
     });
   }
 
@@ -346,34 +400,33 @@
       ".serp-num-badge, .serp-ads-badge{\n",
       "  position: absolute;\n",
       "  left: 0;\n",
-      "  top: 8px;\n",
-      "  transform: translateX(calc(-100% - 10px));\n",
+      "  top: 50%;\n",
+      "  transform: translate(calc(-100% - 12px), -50%);\n",
       "  display: inline-flex;\n",
       "  align-items: center;\n",
       "  justify-content: center;\n",
-      "  min-width: 34px;\n",
-      "  height: 22px;\n",
-      "  padding: 0 6px;\n",
-      "  border-radius: 8px;\n",
-      "  border: 1px solid var(--serp-border);\n",
-      "  background: var(--serp-bg);\n",
-      "  color: var(--serp-fg);\n",
-      "  font: 800 12px/1 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;\n",
+      "  min-width: 38px;\n",
+      "  height: 26px;\n",
+      "  padding: 0 8px;\n",
+      "  border-radius: 12px;\n",
+      "  border: none;\n",
+      "  font: 700 13px/1 system-ui, -apple-system, Segoe UI, Roboto, Arial, sans-serif;\n",
       "  z-index: 20;\n",
       "  user-select: none;\n",
-      "  pointer-events: none;\n",
+      "  pointer-events: auto;\n",
+      "  transition: all 0.2s ease;\n",
       "}\n",
 
       ".serp-note-wrap{\n",
       "  position: absolute;\n",
       "  right: 0;\n",
-      "  top: 6px;\n",
-      "  transform: translateX(calc(100% + 10px));\n",
+      "  top: 50%;\n",
+      "  transform: translate(calc(100% + 10px), -50%);\n",
       "  width: auto;\n",
       "  z-index: 20;\n",
       "  display: inline-flex;\n",
-      "  align-items: flex-start;\n",
-      "  gap: 6px;\n",
+      "  align-items: center;\n",
+      "  gap: 8px;\n",
       "}\n",
 
       ".serp-note-btn{\n",
@@ -1017,9 +1070,11 @@
 
   // START
   syncThemeFlag();
-  run();
-  attachObserver();
-  hookHistoryNavigation();
+  storageGetBadgeColors().then(() => {
+    run();
+    attachObserver();
+    hookHistoryNavigation();
+  });
 
   if (window.matchMedia) {
     const mq = window.matchMedia("(prefers-color-scheme: dark)");

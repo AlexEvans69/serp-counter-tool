@@ -6,32 +6,93 @@
         ref="previewEl"
         class="note-preview"
         :class="{ expanded: isExpanded }"
+        :style="previewStyle"
+        @click="handlePreviewClick"
       >
-        {{ text }}
+        <div class="note-preview-text">{{ text }}</div>
+        <div v-if="showExpandBtn" class="note-preview-footer">
+          <button class="note-toggle-btn" @click.stop="toggleExpand">
+            <span v-if="!isExpanded">▼ Show More</span>
+            <span v-else>▲ Show Less</span>
+          </button>
+        </div>
       </div>
-      <button
-        v-if="showExpandBtn"
-        class="note-expand-btn"
-        @click="toggleExpand"
-      >
-        <span v-if="!isExpanded">▼ More</span>
-        <span v-else>▲ Less</span>
-      </button>
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, nextTick } from "vue";
+import { ref, onMounted, onUnmounted, nextTick, computed, watch } from "vue";
 
 const props = defineProps({
   text: String,
   onOpenPanel: Function,
+  onLayoutChange: Function,
+  maxPreviewHeight: {
+    type: Number,
+    default: 100,
+  },
 });
 
 const isExpanded = ref(false);
 const showExpandBtn = ref(false);
 const previewEl = ref(null);
+const maxWidth = ref(400);
+const previewLimit = ref(Math.max(40, props.maxPreviewHeight || 100));
+const computedMaxHeight = computed(() =>
+  isExpanded.value ? "none" : `${previewLimit.value}px`
+);
+
+const badgeBg = ref(getBadgeTheme().bg);
+const badgeFg = ref(getBadgeTheme().text);
+const previewStyle = computed(() => ({
+  maxWidth: `${maxWidth.value}px`,
+  maxHeight: computedMaxHeight.value,
+  background: badgeBg.value,
+  color: badgeFg.value,
+}));
+
+function getBadgeTheme() {
+  return window.__SERP_BADGE_THEME || { bg: "#667eea", text: "#ffffff" };
+}
+
+function applyBadgeTheme(theme) {
+  const normalized = { bg: "#667eea", text: "#ffffff", ...(theme || {}) };
+  badgeBg.value = normalized.bg;
+  badgeFg.value = normalized.text;
+}
+
+function badgeThemeListener(theme) {
+  applyBadgeTheme(theme);
+}
+
+function calculateMaxWidth() {
+  if (!previewEl.value) return;
+
+  const rect = previewEl.value.getBoundingClientRect();
+  const rightEdge = rect.right;
+  const windowWidth = window.innerWidth;
+
+  const availableWidth = windowWidth - rightEdge + rect.width - 80;
+  maxWidth.value = Math.max(200, Math.min(600, availableWidth));
+}
+
+function checkExpandButton() {
+  if (!previewEl.value || !props.text) {
+    showExpandBtn.value = false;
+    isExpanded.value = false;
+    return;
+  }
+
+  const hasOverflow =
+    previewEl.value.scrollHeight > previewEl.value.clientHeight + 1;
+
+  if (!hasOverflow) {
+    isExpanded.value = false;
+  }
+
+  showExpandBtn.value = true;
+}
 
 function handleOpenPanel() {
   if (typeof props.onOpenPanel === "function") {
@@ -39,17 +100,139 @@ function handleOpenPanel() {
   }
 }
 
+function handlePreviewClick() {
+  if (typeof props.onOpenPanel === "function") {
+    props.onOpenPanel();
+  }
+}
+
 function toggleExpand() {
   isExpanded.value = !isExpanded.value;
+  notifyLayoutChange();
 }
+
+function refreshPreviewState() {
+  calculateMaxWidth();
+  checkExpandButton();
+  notifyLayoutChange();
+}
+
+function notifyLayoutChange() {
+  if (typeof props.onLayoutChange === "function") {
+    props.onLayoutChange();
+  }
+}
+
+watch(
+  () => props.text,
+  () => {
+    isExpanded.value = false;
+    nextTick(() => {
+      refreshPreviewState();
+    });
+  }
+);
+
+watch(
+  () => props.maxPreviewHeight,
+  (value) => {
+    previewLimit.value = Math.max(40, value || 100);
+    if (isExpanded.value) return;
+    nextTick(() => {
+      checkExpandButton();
+    });
+  }
+);
 
 onMounted(() => {
   nextTick(() => {
-    if (previewEl.value && props.text) {
-      // Check if content exceeds 3 lines (approximately 60px)
-      const fullHeight = previewEl.value.scrollHeight;
-      showExpandBtn.value = fullHeight > 60;
-    }
+    refreshPreviewState();
   });
+
+  window.addEventListener("resize", calculateMaxWidth);
+  if (!window.__SERP_BADGE_THEME_LISTENERS)
+    window.__SERP_BADGE_THEME_LISTENERS = new Set();
+  window.__SERP_BADGE_THEME_LISTENERS.add(badgeThemeListener);
+  applyBadgeTheme(window.__SERP_BADGE_THEME);
+});
+
+onUnmounted(() => {
+  window.removeEventListener("resize", calculateMaxWidth);
+  if (window.__SERP_BADGE_THEME_LISTENERS) {
+    window.__SERP_BADGE_THEME_LISTENERS.delete(badgeThemeListener);
+  }
 });
 </script>
+
+<style>
+.serp-note-btn {
+  cursor: pointer;
+}
+.note-preview {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-start;
+  border: 1px solid var(--serp-note-border);
+  background: var(--serp-badge-bg, var(--serp-note-card-bg));
+  color: var(--serp-badge-fg, var(--serp-note-fg));
+  border-radius: 8px;
+  padding: 10px;
+  font: 600 13px/1.35 Space Grotesk, system-ui, -apple-system, Segoe UI, Roboto,
+    Arial, sans-serif;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  max-width: none; /* Allow width to expand */
+  max-height: 100px;
+  overflow: hidden;
+  gap: 4px;
+  transition: max-height 0.24s ease, box-shadow 0.24s ease;
+  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.45);
+  position: relative;
+
+  cursor: pointer;
+}
+.note-preview:not(.expanded) {
+  min-height: 100px;
+}
+.note-preview-text {
+  width: 100%;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+  word-break: break-word;
+  white-space: pre-wrap;
+}
+.note-preview:not(.expanded) .note-preview-text {
+  max-height: calc(100px - 52px);
+}
+.note-preview.expanded {
+  max-height: 500px;
+}
+
+.note-preview-footer {
+  width: 100%;
+  display: flex;
+  justify-content: flex-start;
+  padding-top: 6px;
+}
+
+.note-toggle-btn {
+  font: inherit;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid var(--serp-note-border);
+  color: inherit;
+  border-radius: 12px;
+  padding: 6px 14px;
+  cursor: pointer;
+  user-select: none;
+  transition: background 0.2s ease, transform 0.2s ease;
+}
+
+.note-toggle-btn:hover,
+.note-toggle-btn:focus-visible {
+  background: rgba(255, 255, 255, 0.16);
+  transform: translateY(-1px);
+}
+</style>

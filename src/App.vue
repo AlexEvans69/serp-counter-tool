@@ -1250,15 +1250,16 @@ onUnmounted(() => {
   position: absolute;
   right: 0;
   top: 50%;
-  transform: translate(calc(100% + 10px), -50%);
+  transform: translate(calc(100% + 10px), -50px);
   width: auto;
   z-index: 100;
+  transform-origin: top center;
 }
 
 .note-wrap {
   position: relative;
   display: inline-flex;
-  align-items: center;
+  align-items: start;
   gap: 8px;
   z-index: 100;
   isolation: isolate;
@@ -1273,50 +1274,9 @@ onUnmounted(() => {
   pointer-events: auto;
 }
 
-.note-preview {
-  border: 1px solid var(--serp-note-border);
-  background: var(--serp-note-card-bg);
-  color: var(--serp-note-fg);
-  border-radius: 18px;
-  padding: 14px 16px;
-  font: 600 13px/1.35 Space Grotesk, system-ui, -apple-system, Segoe UI, Roboto,
-    Arial, sans-serif;
-  white-space: pre-wrap;
-  overflow-wrap: anywhere;
-  word-break: break-word;
-  max-width: 220px;
-  max-height: 64px;
-  overflow: hidden;
-  display: block;
-  transition: max-height 0.24s ease, box-shadow 0.24s ease;
-  box-shadow: 0 16px 32px rgba(0, 0, 0, 0.45);
-}
 
 .note-preview.expanded {
   max-height: 500px;
-}
-
-.note-expand-btn {
-  align-self: center;
-  background: linear-gradient(135deg, #7c3aed 0%, #2563eb 100%);
-  border: none;
-  color: #fff;
-  border-radius: 14px;
-  padding: 6px 14px;
-  font: 600 12px/1 Space Grotesk, system-ui, -apple-system, Segoe UI, Roboto,
-    Arial, sans-serif;
-  cursor: pointer;
-  user-select: none;
-  transition: transform 0.2s ease, box-shadow 0.2s ease;
-  pointer-events: auto;
-  position: relative;
-  z-index: 101;
-  box-shadow: 0 10px 26px rgba(99, 102, 241, 0.35);
-}
-
-.note-expand-btn:hover {
-  transform: translateY(-1px) scale(1.02);
-  box-shadow: 0 14px 30px rgba(99, 102, 241, 0.45);
 }
 
 .serp-note-panel-container {

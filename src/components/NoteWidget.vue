@@ -11,9 +11,15 @@
       >
         <div class="note-preview-text">{{ text }}</div>
         <div v-if="showExpandBtn" class="note-preview-footer">
-          <button class="note-toggle-btn" @click.stop="toggleExpand">
-            <span v-if="!isExpanded">▼ Show More</span>
-            <span v-else>▲ Show Less</span>
+          <button class="note-toggle-btn" @click.stop="toggleExpand">      
+            <ChevronDown
+              :size="12"
+              :style="{
+                transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.2s ease',
+              }"
+            />
+            <span>{{isExpanded ? "Show Less" : "Show More"}}</span>
           </button>
         </div>
       </div>
@@ -23,6 +29,7 @@
 
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick, computed, watch } from "vue";
+import ChevronDown from "./ChevronDown.vue";
 
 const props = defineProps({
   text: String,
@@ -173,11 +180,9 @@ onUnmounted(() => {
   flex-direction: column;
   justify-content: space-between;
   align-items: flex-start;
-  border: 1px solid var(--serp-note-border);
   background: var(--serp-badge-bg, var(--serp-note-card-bg));
   color: var(--serp-badge-fg, var(--serp-note-fg));
   border-radius: 8px;
-  padding: 10px;
   font: 600 13px/1.35 Space Grotesk, system-ui, -apple-system, Segoe UI, Roboto,
     Arial, sans-serif;
   white-space: pre-wrap;
@@ -186,10 +191,12 @@ onUnmounted(() => {
   max-width: none; /* Allow width to expand */
   max-height: 100px;
   overflow: hidden;
-  gap: 4px;
+  gap: 6px;
+  box-sizing: border-box;
   transition: max-height 0.24s ease, box-shadow 0.24s ease;
   box-shadow: 0 16px 32px rgba(0, 0, 0, 0.45);
   position: relative;
+  padding: 0;
 
   cursor: pointer;
 }
@@ -203,9 +210,10 @@ onUnmounted(() => {
   overflow: hidden;
   word-break: break-word;
   white-space: pre-wrap;
+  padding: 8px;
 }
 .note-preview:not(.expanded) .note-preview-text {
-  max-height: calc(100px - 52px);
+  max-height: calc(100px - 50px);
 }
 .note-preview.expanded {
   max-height: 500px;
@@ -214,20 +222,25 @@ onUnmounted(() => {
 .note-preview-footer {
   width: 100%;
   display: flex;
-  justify-content: flex-start;
-  padding-top: 6px;
+  justify-content: center;
+  margin-top: 4px;
+  min-height: 24px;
 }
 
 .note-toggle-btn {
+  width: 100%;
   font: inherit;
-  background: rgba(255, 255, 255, 0.08);
-  border: 1px solid var(--serp-note-border);
+  background: none;
+  border: none;
   color: inherit;
-  border-radius: 12px;
-  padding: 6px 14px;
+  border-radius: 8px;
+  padding: 2px 6px;
   cursor: pointer;
   user-select: none;
   transition: background 0.2s ease, transform 0.2s ease;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .note-toggle-btn:hover,

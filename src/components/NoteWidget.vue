@@ -212,7 +212,7 @@ onUnmounted(() => {
   padding: 8px;
 }
 .note-preview:not(.expanded) .note-preview-text {
-  max-height: calc(100px - 50px);
+  max-height: calc(100px - 52px);
 }
 .note-preview.expanded {
   max-height: 500px;

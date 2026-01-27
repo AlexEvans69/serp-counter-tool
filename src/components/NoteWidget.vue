@@ -197,7 +197,6 @@ onUnmounted(() => {
   box-shadow: 0 16px 32px rgba(0, 0, 0, 0.45);
   position: relative;
   padding: 0;
-
   cursor: pointer;
 }
 .note-preview:not(.expanded) {

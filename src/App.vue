@@ -1275,9 +1275,9 @@ onUnmounted(() => {
 }
 
 
-.note-preview.expanded {
+/* .note-preview.expanded {
   max-height: 500px;
-}
+} */
 
 .serp-note-panel-container {
   position: fixed;

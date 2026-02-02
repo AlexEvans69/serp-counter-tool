@@ -217,6 +217,15 @@ function getSnippetPreviewHeight(resultDiv) {
   return 60;
 }
 
+function hasSnippetText(resultDiv) {
+  if (!resultDiv) return false;
+  const snippetSelectors = [".VwiC3b", ".IsZvec", ".aCOpRe"];
+  return snippetSelectors.some((selector) => {
+    const el = resultDiv.querySelector(selector);
+    return Boolean(el && el.textContent && el.textContent.trim());
+  });
+}
+
 // ---- Panel handling ----
 let activePanelApp = null;
 let activePanelContainer = null;
@@ -981,6 +990,27 @@ const EXCLUDED_MODULE_LABELS = [
   "related searches",
 ];
 
+const RELATED_QUESTIONS_ATTRID_KEYWORDS = ["related_questions", "relatedquestions"];
+const RELATED_QUESTIONS_SELECTOR = RELATED_QUESTIONS_ATTRID_KEYWORDS
+  .map((keyword) => `[data-attrid*="${keyword}"]`)
+  .join(",");
+const EXCLUDED_ATTRID_KEYWORDS = [
+  ...RELATED_QUESTIONS_ATTRID_KEYWORDS,
+  "shopping",
+  "product",
+  "products",
+  "shopping_results",
+  "merchant",
+];
+
+function hasExcludedAttrId(node) {
+  if (!node) return false;
+  const attr = node.getAttribute?.("data-attrid") || "";
+  if (!attr) return false;
+  const normalized = attr.toLowerCase();
+  return EXCLUDED_ATTRID_KEYWORDS.some((keyword) => normalized.includes(keyword));
+}
+
 function nodeTextHasModuleLabel(node) {
   if (!node) return false;
   const text = node.textContent;
@@ -1010,9 +1040,11 @@ function hasExcludedSerpModule(element) {
   const searchRoot = document.getElementById("search");
   let depth = 0;
   let current = element;
+  if (RELATED_QUESTIONS_SELECTOR && element.closest(RELATED_QUESTIONS_SELECTOR)) return true;
   if (elementContainsModuleLabel(element)) return true;
+  if (hasExcludedAttrId(element)) return true;
   while (current && current !== searchRoot && depth < 7) {
-    if (current.hasAttribute("data-attrid")) return true;
+    if (hasExcludedAttrId(current)) return true;
     const cls = current.className || "";
     if (EXCLUDED_MODULE_CLASSES.some((moduleClass) => cls.includes(moduleClass))) return true;
 
@@ -1043,6 +1075,14 @@ function isClassicOrganicResult(wrapper, resultDiv, titleContainer, h3, href) {
   
   // Exclude special modules
   if (hasExcludedSerpModule(resultDiv) || hasExcludedSerpModule(wrapper)) return false;
+
+  // Require an actual snippet before treating as organic
+  if (!hasSnippetText(resultDiv)) {
+    logDebug("Skipping result because it lacks a snippet", {
+      title: h3.textContent?.trim().slice(0, 40),
+    });
+    return false;
+  }
   
   // Exclude bad prefixes
   if (href.startsWith("#") || href.startsWith("/search?") || href.startsWith("/imgres?")) return false;

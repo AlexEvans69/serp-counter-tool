@@ -9,9 +9,11 @@
         :style="previewStyle"
         @click="handlePreviewClick"
       >
-        <div class="note-preview-text">{{ text }}</div>
+        <div class="note-preview-inner" :style="previewBodyStyle">
+          <div class="note-preview-text">{{ text }}</div>
+        </div>
         <div v-if="showExpandBtn" class="note-preview-footer">
-          <button class="note-toggle-btn" @click.stop="toggleExpand">      
+          <button class="note-toggle-btn" @click.stop="toggleExpand">
             <ChevronDown
               :size="12"
               :style="{
@@ -26,7 +28,6 @@
     </div>
   </div>
 </template>
-
 <script setup>
 import { ref, onMounted, onUnmounted, nextTick, computed, watch } from "vue";
 import ChevronDown from "./ChevronDown.vue";
@@ -45,7 +46,16 @@ const isExpanded = ref(false);
 const showExpandBtn = ref(false);
 const previewEl = ref(null);
 const maxWidth = ref(400);
-const previewLimit = ref(Math.max(40, props.maxPreviewHeight || 100));
+const VISIBLE_LINE_HEIGHT = 13 * 1.35;
+const VISIBLE_LINE_PADDING = 16;
+const EXTRA_VISIBLE = 6;
+const MIN_VISIBLE_LINES = 3;
+const MIN_PREVIEW_LIMIT = Math.round(
+  VISIBLE_LINE_HEIGHT * MIN_VISIBLE_LINES + VISIBLE_LINE_PADDING + EXTRA_VISIBLE
+);
+const previewLimit = ref(
+  Math.max(40, props.maxPreviewHeight || 100, MIN_PREVIEW_LIMIT)
+);
 const computedMaxHeight = computed(() =>
   isExpanded.value ? "none" : `${previewLimit.value}px`
 );
@@ -54,9 +64,12 @@ const badgeBg = ref(getBadgeTheme().bg);
 const badgeFg = ref(getBadgeTheme().text);
 const previewStyle = computed(() => ({
   maxWidth: `${maxWidth.value}px`,
-  maxHeight: computedMaxHeight.value,
   background: badgeBg.value,
   color: badgeFg.value,
+}));
+const previewBodyStyle = computed(() => ({
+  maxHeight: computedMaxHeight.value,
+  overflow: isExpanded.value ? "visible" : "hidden",
 }));
 
 function getBadgeTheme() {
@@ -91,14 +104,14 @@ function checkExpandButton() {
     return;
   }
 
-  const hasOverflow =
-    previewEl.value.scrollHeight > previewEl.value.clientHeight + 1;
+  const textEl = previewEl.value.querySelector(".note-preview-text");
+  const hasOverflow = textEl?.scrollHeight > previewLimit.value + 1;
 
   if (!hasOverflow) {
     isExpanded.value = false;
   }
 
-  showExpandBtn.value = true;
+  showExpandBtn.value = hasOverflow || isExpanded.value;
 }
 
 function handleOpenPanel() {
@@ -143,7 +156,7 @@ watch(
 watch(
   () => props.maxPreviewHeight,
   (value) => {
-    previewLimit.value = Math.max(40, value || 100);
+    previewLimit.value = Math.max(40, value || 100, MIN_PREVIEW_LIMIT);
     if (isExpanded.value) return;
     nextTick(() => {
       checkExpandButton();
@@ -178,7 +191,7 @@ onUnmounted(() => {
 .note-preview {
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  justify-content: flex-start;
   align-items: flex-start;
   background: var(--serp-badge-bg, var(--serp-note-card-bg));
   color: var(--serp-badge-fg, var(--serp-note-fg));
@@ -188,36 +201,26 @@ onUnmounted(() => {
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   word-break: break-word;
-  max-width: none; /* Allow width to expand */
-  max-height: 100px;
-  overflow: hidden;
+  max-width: none;
   gap: 6px;
   box-sizing: border-box;
-  transition: max-height 0.24s ease, box-shadow 0.24s ease;
+  transition: box-shadow 0.24s ease;
   box-shadow: 0 16px 32px rgba(0, 0, 0, 0.45);
   position: relative;
   padding: 0;
   cursor: pointer;
 }
-.note-preview:not(.expanded) {
-  min-height: 100px;
+.note-preview-inner {
+  width: 100%;
+  overflow: hidden;
+  transition: max-height 0.24s ease;
 }
 .note-preview-text {
   width: 100%;
-  flex: 1;
-  min-height: 0;
-  overflow: hidden;
   word-break: break-word;
   white-space: pre-wrap;
   padding: 8px;
 }
-.note-preview:not(.expanded) .note-preview-text {
-  max-height: calc(100px - 52px);
-}
-.note-preview.expanded {
-  max-height: 500px;
-}
-
 .note-preview-footer {
   width: 100%;
   display: flex;
@@ -225,15 +228,14 @@ onUnmounted(() => {
   margin-top: 4px;
   min-height: 24px;
 }
-
 .note-toggle-btn {
-  width: 100%;
+  width: auto;
   font: inherit;
-  background: none;
+  background: rgba(255, 255, 255, 0.08);
   border: none;
   color: inherit;
   border-radius: 8px;
-  padding: 2px 6px;
+  padding: 4px 10px;
   cursor: pointer;
   user-select: none;
   transition: background 0.2s ease, transform 0.2s ease;
@@ -241,7 +243,6 @@ onUnmounted(() => {
   align-items: center;
   gap: 4px;
 }
-
 .note-toggle-btn:hover,
 .note-toggle-btn:focus-visible {
   background: rgba(255, 255, 255, 0.16);

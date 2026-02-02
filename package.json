@@ -2,7 +2,7 @@
   "name": "serp_counter_vue_ext",
   "version": "1.0.0",
   "description": "Google SERP Numerator reimplemented as a Vue 3 extension",
-  "author": "",
+  "author": "Alexey Bogomolov",
   "private": true,
   "scripts": {
     "dev": "vite",

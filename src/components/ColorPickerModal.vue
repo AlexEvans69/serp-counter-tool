@@ -109,7 +109,7 @@ const close = () => {
     props.onClose();
   }
 };
-
+// save and close
 const apply = () => {
   if (typeof props.onApply === "function") {
     props.onApply({

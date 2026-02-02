@@ -10,3 +10,5 @@ Works not only for the top 10, but across all pagination pages. The extension co
 Notes feature: add notes to websites directly in the SERP. Apply a note to a specific URL or to an entire domain, so you can save quick insights while analyzing competitors — or any other text you want to keep next to the results.</span>
 
 <b>Credits:</b> https://brokenseo.net/
+For more info check out my post about this extension: https://brokenseo.net/blog/serp-counter-extension
+
